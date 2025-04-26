@@ -19,7 +19,9 @@ mlp_config = {
         {"type": "activation", "name": "relu"},
         {"type": "linear", "in_features": 32, "out_features": 10}
     ],
-    "device": "cuda"
+    "device": "cuda",
+    "loss": "cross_entropy",
+    "optimizer": "adam"
 }
 
 # --- CNN CONFIG ---
@@ -44,7 +46,9 @@ cnn_config = {
         {"type": "activation", "name": "relu"},
         {"type": "linear", "in_features": 256, "out_features": 10}
     ],
-    "device": "cuda"
+    "device": "cuda",
+    "loss": "cross_entropy",
+    "optimizer": "adam"
 }
 
 # --- RNN CONFIG ---
@@ -55,7 +59,9 @@ rnn_config = {
         {"type": "rnn", "input_size": 16, "hidden_size": 32, "num_layers": 1, "batch_first": True},
         {"type": "linear", "in_features": 32, "out_features": 10}
     ],
-    "device": "cuda"
+    "device": "cuda",
+    "loss": "cross_entropy",
+    "optimizer": "adam"
 }
 
 # --- LSTM CONFIG ---
@@ -66,7 +72,9 @@ lstm_config = {
         {"type": "lstm", "input_size": 16, "hidden_size": 64, "num_layers": 1, "batch_first": True},
         {"type": "linear", "in_features": 64, "out_features": 10}
     ],
-    "device": "cuda"
+    "device": "cuda",
+    "loss": "cross_entropy",
+    "optimizer": "adam"
 }
 
 # --- TRANSFORMER CONFIG ---
@@ -77,7 +85,9 @@ transformer_config = {
         {"type": "transformer_encoder", "d_model": 32, "num_heads": 4, "num_layers": 2},
         {"type": "linear", "in_features": 32, "out_features": 10}
     ],
-    "device": "cuda"
+    "device": "cuda",
+    "loss": "cross_entropy",
+    "optimizer": "adam"
 }
 
 def build_and_test(config):
@@ -108,8 +118,8 @@ train_loader = get_dataloader(torchvision.datasets.CIFAR10(root='./data', train=
 test_loader = get_dataloader(torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform), batch_size=64)
 
 # build loss and optimizer functions
-criterion = get_loss('cross_entropy', reduction='mean')
-optimizer = get_optim("adam", model.parameters(), lr=0.01, weight_decay=1e-5)
+criterion = get_loss(cnn_config["loss"], reduction='mean')
+optimizer = get_optim(cnn_config["optimizer"], model.parameters(), lr=0.01, weight_decay=1e-5)
 
 # training loop
 epochs = 5
