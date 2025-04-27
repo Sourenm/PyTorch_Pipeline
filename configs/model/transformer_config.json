@@ -1,0 +1,9 @@
+{
+    "model_type": "transformer",
+    "input_shape": [10, 32],
+    "layer_specs": [
+        {"type": "transformer_encoder", "d_model": 32, "num_heads": 4, "num_layers": 2},
+        {"type": "linear", "in_features": 32, "out_features": 10}
+    ],
+    "device": "cuda"
+}

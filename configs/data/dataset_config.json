@@ -1,0 +1,6 @@
+{
+    "name": "CIFAR10",
+    "normalize_mean": [0.5, 0.5, 0.5],
+    "normalize_std": [0.5, 0.5, 0.5]
+  }
+  

@@ -1,0 +1,9 @@
+{
+    "model_type": "lstm",
+    "input_shape": [10, 16],
+    "layer_specs": [
+        {"type": "lstm", "input_size": 16, "hidden_size": 64, "num_layers": 1, "batch_first": true},
+        {"type": "linear", "in_features": 64, "out_features": 10}
+    ],
+    "device": "cuda"
+}

@@ -1,0 +1,11 @@
+{
+  "batch_size": 64,
+  "shuffle": true,
+  "loss_function": "cross_entropy",
+  "optimizer": {
+    "type": "adam",
+    "lr": 0.01,
+    "weight_decay": 1e-5
+  },
+  "epochs": 5
+}

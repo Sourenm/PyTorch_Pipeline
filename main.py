@@ -1,100 +1,30 @@
 import torch
 import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+import json
 from config import get_model, get_dataloader, get_loss, get_optim
 from model_factory.utils import validate_layer_specs, config_to_code
 from train import train_model_one_epoch
 from evaluate import evaluate_model, plot_predictions_accuracy
-import torchvision
-import torchvision.transforms as transforms
 
-# --- MLP CONFIG ---
-mlp_config = {
-    "model_type": "mlp",
-    "input_shape": (128,),
-    "layer_specs": [
-        {"type": "linear", "in_features": 128, "out_features": 64},
-        {"type": "activation", "name": "relu"},
-        {"type": "dropout", "dropout": 0.2},
-        {"type": "linear", "in_features": 64, "out_features": 32},
-        {"type": "activation", "name": "relu"},
-        {"type": "linear", "in_features": 32, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"
-}
+# Load JSON configuration files
+with open('configs/model/cnn_config.json', 'r') as f:
+    model_config = json.load(f)
 
-# --- CNN CONFIG ---
-cnn_config = {
-    "model_type": "cnn",
-    "input_shape": (3, 32, 32),
-    "layer_specs": [
-        {"type": "conv2d", "in_channels": 3, "out_channels": 32, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
+with open('configs/training/train_config.json', 'r') as f:
+    train_config = json.load(f)
 
-        {"type": "conv2d", "in_channels": 32, "out_channels": 64, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
+with open('configs/data/dataset_config.json', 'r') as f:
+    dataset_config = json.load(f)
 
-        {"type": "conv2d", "in_channels": 64, "out_channels": 128, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
-
-        {"type": "flatten"},
-        {"type": "linear", "in_features": 128 * 4 * 4, "out_features": 256},
-        {"type": "activation", "name": "relu"},
-        {"type": "linear", "in_features": 256, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"
-}
-
-# --- RNN CONFIG ---
-rnn_config = {
-    "model_type": "rnn",
-    "input_shape": (10, 16),
-    "layer_specs": [
-        {"type": "rnn", "input_size": 16, "hidden_size": 32, "num_layers": 1, "batch_first": True},
-        {"type": "linear", "in_features": 32, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"
-}
-
-# --- LSTM CONFIG ---
-lstm_config = {
-    "model_type": "lstm",
-    "input_shape": (10, 16),
-    "layer_specs": [
-        {"type": "lstm", "input_size": 16, "hidden_size": 64, "num_layers": 1, "batch_first": True},
-        {"type": "linear", "in_features": 64, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"
-}
-
-# --- TRANSFORMER CONFIG ---
-transformer_config = {
-    "model_type": "transformer",
-    "input_shape": (10, 32),
-    "layer_specs": [
-        {"type": "transformer_encoder", "d_model": 32, "num_heads": 4, "num_layers": 2},
-        {"type": "linear", "in_features": 32, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"
-}
+# --- Building Model ---
 
 def build_and_test(config):
     try:
-        device = torch.device("cuda" if (config["device"] == "cuda" and torch.cuda.is_available()) else "cpu") 
-        validate_layer_specs(config["model_type"], config["layer_specs"])        
-        model = get_model(config["model_type"], config["layer_specs"], config["device"])
+        device = torch.device("cuda" if (config["device"] == "cuda" and torch.cuda.is_available()) else "cpu")
+        validate_layer_specs(config["model_type"], config["layer_specs"])
+        model = get_model(config["model_type"], config["layer_specs"], device)
         print("--- Code for reproducibility ---")
         print(config_to_code(config))
         print("\n")
@@ -103,26 +33,38 @@ def build_and_test(config):
     except Exception as e:
         raise ValueError(f"❌ Error building {config['model_type'].upper()}: {str(e)}\n")
 
+model = build_and_test(model_config)
 
-# Transforms (normalizing to [-1, 1] for tanh/relu if needed)
+# --- Preparing Dataset ---
+# TODO: put a flag to do this or skip it
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    transforms.Normalize(dataset_config["normalize_mean"], dataset_config["normalize_std"])
 ])
 
-# build the model and test the config structure
-model = build_and_test(cnn_config)
+# TODO: accomodate more/any datasets
+dataset_name = dataset_config.get("name", "CIFAR10")
 
-# build train DataLoader and test DataLoader
-train_loader = get_dataloader(torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform), batch_size=64, shuffle=True)
-test_loader = get_dataloader(torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform), batch_size=64)
+if dataset_name == "CIFAR10":
+    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+else:
+    raise ValueError(f"Dataset {dataset_name} not supported yet.")
 
-# build loss and optimizer functions
-criterion = get_loss(cnn_config["loss"], reduction='mean')
-optimizer = get_optim(cnn_config["optimizer"], model.parameters(), lr=0.01, weight_decay=1e-5)
+train_loader = get_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=train_config["shuffle"])
+test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"])
 
-# training loop
-epochs = 5
+# --- Building Loss and Optimizer ---
+criterion = get_loss(train_config["loss_function"], reduction='mean')
+optimizer = get_optim(
+    train_config["optimizer"]["type"],
+    model.parameters(),
+    lr=train_config["optimizer"]["lr"],
+    weight_decay=train_config["optimizer"].get("weight_decay", 0)
+)
+
+# --- Training Loop ---
+epochs = train_config["epochs"]
 train_accs = []
 test_accs = []
 
@@ -132,8 +74,8 @@ for epoch in range(epochs):
     test_accs.append(test_acc)
     print(f"Epoch {epoch} | Train Acc: {train_accs[-1]*100:.2f}% | Test Acc: {test_accs[-1]*100:.2f}%")
 
-# saving the model
-torch.save(model.state_dict(), "cnn_cifar10.pth")
+# --- Saving Model ---
+torch.save(model.state_dict(), "trained_model.pth")
 
-# plotting the accuracy
+# --- Plotting Accuracy ---
 plot_predictions_accuracy(train_accs, test_accs)

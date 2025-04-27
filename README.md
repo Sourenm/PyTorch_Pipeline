@@ -52,68 +52,92 @@ import torchvision.transforms as transforms
 # Transforms (normalizing to [-1, 1] for tanh/relu if needed)
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1]
+    transforms.Normalize(dataset_config["normalize_mean"], dataset_config["normalize_std"])
 ])
 
 # Load the CIFAR-10 training and test datasets
-train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+dataset_name = dataset_config.get("name", "CIFAR10")
 
-# Create DataLoader instances for training and testing
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
+if dataset_name == "CIFAR10":
+    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+else:
+    raise ValueError(f"Dataset {dataset_name} not supported yet.")
+
+train_loader = get_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=train_config["shuffle"])
+test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"])
 ```
 
 ### Building and Training the Model
 
-In the main.py, we define a CNN model and train it on the CIFAR-10 dataset. Here is the key section:
+In the main.py, we define read the necessary JSON files for model creation, training specs and dataset. Here is the key section:
 
 ```python
+import torch
+import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+import json
 from config import get_model, get_dataloader, get_loss, get_optim
+from model_factory.utils import validate_layer_specs, config_to_code
 from train import train_model_one_epoch
 from evaluate import evaluate_model, plot_predictions_accuracy
 
-# CNN model configuration
-cnn_config = {
-    "model_type": "cnn",
-    "input_shape": (3, 32, 32),
-    "layer_specs": [
-        {"type": "conv2d", "in_channels": 3, "out_channels": 32, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
+# Load JSON configuration files
+with open('configs/model/cnn_config.json', 'r') as f:
+    model_config = json.load(f)
 
-        {"type": "conv2d", "in_channels": 32, "out_channels": 64, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
+with open('configs/training/train_config.json', 'r') as f:
+    train_config = json.load(f)
 
-        {"type": "conv2d", "in_channels": 64, "out_channels": 128, "kernel_size": 3, "padding": 1},
-        {"type": "activation", "name": "relu"},
-        {"type": "maxpool2d", "kernel_size": 2},
+with open('configs/data/dataset_config.json', 'r') as f:
+    dataset_config = json.load(f)
 
-        {"type": "flatten"},
-        {"type": "linear", "in_features": 128 * 4 * 4, "out_features": 256},
-        {"type": "activation", "name": "relu"},
-        {"type": "linear", "in_features": 256, "out_features": 10}
-    ],
-    "device": "cuda",
-    "loss": "cross_entropy",
-    "optimizer": "adam"    
+# --- Building Model ---
 
-}
+def build_and_test(config):
+    try:
+        device = torch.device("cuda" if (config["device"] == "cuda" and torch.cuda.is_available()) else "cpu")
+        validate_layer_specs(config["model_type"], config["layer_specs"])
+        model = get_model(config["model_type"], config["layer_specs"], device)
+        print("--- Code for reproducibility ---")
+        print(config_to_code(config))
+        print("\n")
+        print("Validated layer spec and model successfully ✅")
+        return model
+    except Exception as e:
+        raise ValueError(f"❌ Error building {config['model_type'].upper()}: {str(e)}\n")
 
-# Build the model using the configuration
-model = build_and_test(cnn_config)
+model = build_and_test(model_config)
 
-# Create DataLoader instances (train_loader and test_loader from above)
-train_loader = get_dataloader(train_dataset, batch_size=64, shuffle=True)
-test_loader = get_dataloader(test_dataset, batch_size=64)
+# --- Preparing Dataset ---
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(dataset_config["normalize_mean"], dataset_config["normalize_std"])
+])
 
-# Loss and optimizer
-criterion = get_loss("cross_entropy")
-optimizer = get_optim("adam", model.parameters(), lr=0.01)
+dataset_name = dataset_config.get("name", "CIFAR10")
 
-# Training loop
-epochs = 5
+if dataset_name == "CIFAR10":
+    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+else:
+    raise ValueError(f"Dataset {dataset_name} not supported yet.")
+
+train_loader = get_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=train_config["shuffle"])
+test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"])
+
+# --- Building Loss and Optimizer ---
+criterion = get_loss(train_config["loss_function"], reduction='mean')
+optimizer = get_optim(
+    train_config["optimizer"]["type"],
+    model.parameters(),
+    lr=train_config["optimizer"]["lr"],
+    weight_decay=train_config["optimizer"].get("weight_decay", 0)
+)
+
+# --- Training Loop ---
+epochs = train_config["epochs"]
 train_accs = []
 test_accs = []
 
@@ -123,10 +147,10 @@ for epoch in range(epochs):
     test_accs.append(test_acc)
     print(f"Epoch {epoch} | Train Acc: {train_accs[-1]*100:.2f}% | Test Acc: {test_accs[-1]*100:.2f}%")
 
-# Save the trained model
-torch.save(model.state_dict(), "cnn_cifar10.pth")
+# --- Saving Model ---
+torch.save(model.state_dict(), "trained_model.pth")
 
-# Plotting the accuracy
+# --- Plotting Accuracy ---
 plot_predictions_accuracy(train_accs, test_accs)
 ```
 This code demonstrates the complete pipeline, including:
@@ -141,6 +165,7 @@ The following enhancements are planned:
 
 - 🔧 Full JSON-based Configuration:
   - All pipeline elements (model, dataset, optimizer, loss, hyperparameters) will be defined in a single JSON file for easy reproducibility and CLI execution.
+  - Progress so far: supporting any form of datasets in `dataset_config.json` is left TODO
 - ⚙️ Prefect Orchestration
   - Use Prefect for pipeline management, enabling robust data/compute task orchestration with retry logic, monitoring, and scalability.
 - 📈 MLflow Integration

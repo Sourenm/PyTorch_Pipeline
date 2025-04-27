@@ -1,0 +1,9 @@
+{
+    "model_type": "rnn",
+    "input_shape": [10, 16],
+    "layer_specs": [
+        {"type": "rnn", "input_size": 16, "hidden_size": 32, "num_layers": 1, "batch_first": true},
+        {"type": "linear", "in_features": 32, "out_features": 10}
+    ],
+    "device": "cuda"
+}
