@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 import json
-from config import get_model, get_dataloader, get_loss, get_optim
+from config import get_model, get_dataloader, get_loss, get_optim, get_dataset_from_config
 from model_factory.utils import validate_layer_specs, config_to_code
 from train import train_model_one_epoch
 from evaluate import evaluate_model, plot_predictions_accuracy
@@ -36,20 +36,8 @@ def build_and_test(config):
 model = build_and_test(model_config)
 
 # --- Preparing Dataset ---
-# TODO: put a flag to do this or skip it
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(dataset_config["normalize_mean"], dataset_config["normalize_std"])
-])
-
-# TODO: accomodate more/any datasets
-dataset_name = dataset_config.get("name", "CIFAR10")
-
-if dataset_name == "CIFAR10":
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-else:
-    raise ValueError(f"Dataset {dataset_name} not supported yet.")
+train_dataset = get_dataset_from_config(dataset_config, train=True)
+test_dataset = get_dataset_from_config(dataset_config, train=False)
 
 train_loader = get_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=train_config["shuffle"])
 test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"])

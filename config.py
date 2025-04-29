@@ -7,7 +7,74 @@ from torch.utils.data import Dataset, DataLoader
 from model_factory import build_model
 from model_factory.utils import init_weights
 from functools import partial
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+from torch.utils.data import TensorDataset
+import pandas as pd
+import numpy as np
+import os
 
+def get_dataset_from_config(dataset_config, train=True, device='cuda'):
+    dataset_map = {
+        "cifar10": datasets.CIFAR10,
+        "cifar100": datasets.CIFAR100,
+        "mnist": datasets.MNIST,
+        "fashionmnist": datasets.FashionMNIST,
+        "emnist": datasets.EMNIST,
+        "svhn": datasets.SVHN,
+        "imagenet": datasets.ImageNet,
+        "celeba": datasets.CelebA,
+        "stl10": datasets.STL10,
+        "caltech101": datasets.Caltech101,
+        "caltech256": datasets.Caltech256,
+        "eurosat": datasets.EuroSAT,
+        "fer2013": datasets.FER2013,
+        "gtsrb": datasets.GTSRB,
+        "omniglot": datasets.Omniglot,
+        "sbdataset": datasets.SBDataset,
+        "usps": datasets.USPS
+    }
+
+    if dataset_config["type"] == "torchvision":
+        name = dataset_config["name"].lower()
+        normalize_mean = dataset_config.get("normalize_mean", [0.5])
+        normalize_std = dataset_config.get("normalize_std", [0.5])
+
+        if name not in dataset_map:
+            raise ValueError(f"Unsupported torchvision dataset: {name}")
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(normalize_mean, normalize_std)
+        ])
+        if name == "svhn":
+            return dataset_map[name](root=dataset_config["root"], split='train' if train else 'test', download=True, transform=transform)
+        return dataset_map[name](root=dataset_config["root"], train=train, download=True, transform=transform)
+
+    elif dataset_config["type"] == "custom":
+        format = dataset_config["format"].lower()
+        if format == "csv":
+            df = pd.read_csv(dataset_config["path"])
+            label_col = dataset_config.get("label_column", "label")
+            X = df.drop(columns=[label_col]).values
+            y = df[label_col].values
+        elif format == "npy":
+            X = np.load(dataset_config["X_path"])
+            y = np.load(dataset_config["y_path"])
+        elif format == "pt":
+            data = torch.load(dataset_config["path"])
+            if isinstance(data, dict):
+                X, y = data["X"], data["y"]
+            elif isinstance(data, (list, tuple)) and len(data) == 2:
+                X, y = data
+            else:
+                raise ValueError("Expected a tuple or dict with 'X' and 'y' keys in the .pt file.")
+        else:
+            raise ValueError(f"Unsupported custom format: {format}")
+
+        return get_data(X, y, device)
+
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_config['type']}")
 
 def get_data(X, y, device):
     """
