@@ -19,7 +19,7 @@ This repository provides a modular, extensible deep learning pipeline built with
 
 ## 📁 Project Structure
 
-\`\`\`bash
+```bash
 ├── configs/
 │   ├── model/
 │   │   ├── rnn_config.json
@@ -40,7 +40,7 @@ This repository provides a modular, extensible deep learning pipeline built with
 ├── evaluate.py
 ├── train.py
 └── main.py
-\`\`\`
+```
 
 ---
 
@@ -48,17 +48,17 @@ This repository provides a modular, extensible deep learning pipeline built with
 
 You can train a CNN on CIFAR-10 simply by running:
 
-\`\`\`bash
+```bash
 python main.py
-\`\`\`
+```
 
-### 🔧 \`dataset_config.json\` Format
+### 🔧 `dataset_config.json` Format
 
-The \`dataset_config.json\` supports both **torchvision sample datasets** and **custom datasets**.
+The `dataset_config.json` supports both **torchvision sample datasets** and **custom datasets**.
 
 #### ✅ For Torchvision Datasets (e.g. CIFAR-10):
 
-\`\`\`json
+```json
 {
   "type": "torchvision",
   "name": "CIFAR10",
@@ -67,11 +67,11 @@ The \`dataset_config.json\` supports both **torchvision sample datasets** and **
   "normalize_mean": [0.5, 0.5, 0.5],
   "normalize_std": [0.5, 0.5, 0.5]
 }
-\`\`\`
+```
 
 #### ✅ For Custom Datasets (CSV/NPY/Images):
 
-\`\`\`json
+```json
 {
   "type": "custom",
   "name": "path/to/your/data",
@@ -80,16 +80,16 @@ The \`dataset_config.json\` supports both **torchvision sample datasets** and **
   "normalize_mean": [0.0],
   "normalize_std": [1.0]
 }
-\`\`\`
+```
 
-> Only datasets with both \`normalize_mean\` and \`normalize_std\` will be normalized. Omit these keys to skip normalization.
+> Only datasets with both `normalize_mean` and `normalize_std` will be normalized. Omit these keys to skip normalization.
 
 ---
 
 ## 🏗️ Building and Training the Model
 
-Key steps from \`main.py\`:
-\`\`\`python
+Key steps from `main.py`:
+```python
 # Load configs
 with open('configs/data/dataset_config.json') as f:
     dataset_config = json.load(f)
@@ -109,7 +109,29 @@ else:
 # Create loaders
 train_loader = get_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=train_config["shuffle"])
 test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"])
-\`\`\`
+```
+
+## Fine Tuning:
+
+The `train_config.json` is no equipped with a few parameters that lets you load previously saved models, freeze or unfreeze all but the last layer and change the number of classes for the final classifier layer (in case of classification). The JSON file now looks something like this:
+
+```json
+{
+  "batch_size": 64,
+  "shuffle": true,
+  "loss_function": "cross_entropy",
+  "optimizer": {
+    "type": "adam",
+    "lr": 0.01,
+    "weight_decay": 1e-5
+  },
+  "epochs": 5,
+  "resume_from_checkpoint": false, // Toggle this to true in case there is a previously saved model you want to work with
+  "checkpoint_path": "trained_model.pth", // path to the saved model
+  "freeze_backbone": true, // option to freeze the initial layers or not
+  "replace_classifier": false // option to change the number of classes
+}
+```
 
 ---
 
@@ -122,9 +144,9 @@ test_loader = get_dataloader(test_dataset, batch_size=train_config["batch_size"]
 
 ## 📦 Requirements
 
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
 **Dependencies** include:
 - Python 3.8+

@@ -19,10 +19,9 @@ with open('configs/data/dataset_config.json', 'r') as f:
     dataset_config = json.load(f)
 
 # --- Building Model ---
-
+device = torch.device("cuda" if (model_config["device"] == "cuda" and torch.cuda.is_available()) else "cpu")
 def build_and_test(config):
-    try:
-        device = torch.device("cuda" if (config["device"] == "cuda" and torch.cuda.is_available()) else "cpu")
+    try:        
         validate_layer_specs(config["model_type"], config["layer_specs"])
         model = get_model(config["model_type"], config["layer_specs"], device)
         print("--- Code for reproducibility ---")
@@ -34,6 +33,28 @@ def build_and_test(config):
         raise ValueError(f"❌ Error building {config['model_type'].upper()}: {str(e)}\n")
 
 model = build_and_test(model_config)
+
+# fine-tuning a previous model if indicated in JSON
+if train_config.get("resume_from_checkpoint", False):
+    checkpoint_path = train_config["checkpoint_path"]
+    print(f"Loading model from {checkpoint_path}")
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+
+    if train_config.get("freeze_backbone", False):        
+        # Freeze all layers
+        for param in model.parameters():
+            param.requires_grad = False
+
+        # Unfreeze the last layer (child module)
+        last_layer = list(model.children())[-1]
+        for param in last_layer.parameters():
+            param.requires_grad = True
+        print("Backbone frozen. Only classifier head will be fine-tuned.")
+
+# changing the number of final classes if indicated in JSON
+if model_config["model_type"] == "cnn" and train_config.get("replace_classifier", False):
+    num_features = model.classifier[-1].in_features
+    model.classifier[-1] = nn.Linear(num_features, train_config["num_classes"])
 
 # --- Preparing Dataset ---
 train_dataset = get_dataset_from_config(dataset_config, train=True)

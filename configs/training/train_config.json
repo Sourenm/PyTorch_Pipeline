@@ -7,5 +7,9 @@
     "lr": 0.01,
     "weight_decay": 1e-5
   },
-  "epochs": 5
+  "epochs": 5,
+  "resume_from_checkpoint": false,
+  "checkpoint_path": "trained_model.pth",
+  "freeze_backbone": true,
+  "replace_classifier": false
 }
