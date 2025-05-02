@@ -11,5 +11,9 @@
   "resume_from_checkpoint": false,
   "checkpoint_path": "trained_model.pth",
   "freeze_backbone": true,
-  "replace_classifier": false
+  "replace_classifier": false,
+  "prefect_enabled": true,
+  "use_cache_on_tasks": true,
+  "enable_logging": true,
+  "log_output_path": "logs/training_run.log"  
 }

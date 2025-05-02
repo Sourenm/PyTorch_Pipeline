@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
 from evaluate import evaluate_model
+from prefect import task
+from config import TRAIN_CONFIG
 
+LOG_PRINTS = TRAIN_CONFIG.get("enable_logging", False)
+
+@task(name="Train One Epoch", log_prints=LOG_PRINTS)
 def train_model_one_epoch(model, train_loader, val_loader, criterion, optimizer, device=None, amp=False, crit_mode='loss'):
     """
     Trains the model for one epoch and evaluates it on the validation set.

@@ -10,10 +10,26 @@ from functools import partial
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 from torch.utils.data import TensorDataset
+from prefect import task
+from prefect.tasks import task_input_hash
+from datetime import timedelta
 import pandas as pd
 import numpy as np
 import os
+import json
 
+with open("configs/training/train_config.json") as f:
+    TRAIN_CONFIG = json.load(f)
+
+USE_CACHE = TRAIN_CONFIG.get("use_cache_on_tasks", False)
+LOG_PRINTS = TRAIN_CONFIG.get("enable_logging", False)
+
+@task(
+    name="Get Dataset from Config",
+    cache_key_fn=task_input_hash if USE_CACHE else None,
+    cache_expiration=timedelta(days=1) if USE_CACHE else None,
+    log_prints=LOG_PRINTS
+)
 def get_dataset_from_config(dataset_config, train=True, device='cuda'):
     dataset_map = {
         "cifar10": datasets.CIFAR10,
@@ -76,12 +92,24 @@ def get_dataset_from_config(dataset_config, train=True, device='cuda'):
     else:
         raise ValueError(f"Unknown dataset type: {dataset_config['type']}")
 
+@task(
+    name="Get Data (Tensor Conversion)",
+    cache_key_fn=task_input_hash if USE_CACHE else None,
+    cache_expiration=timedelta(days=1) if USE_CACHE else None,
+    log_prints=LOG_PRINTS
+)
 def get_data(X, y, device):
     """
     converts non tensor X, y data to tensor data
     """
     return Data(X, y, device)
 
+@task(
+    name="Get Dataloader",
+    cache_key_fn=task_input_hash if USE_CACHE else None,
+    cache_expiration=timedelta(days=1) if USE_CACHE else None,
+    log_prints=LOG_PRINTS
+)
 def get_dataloader(dataset, batch_size=32, shuffle=True):
     """
     build DataLoaders from input using batch_size and shuffle parameters
@@ -96,7 +124,12 @@ def get_dataloader(dataset, batch_size=32, shuffle=True):
     """
     return DataLoader(dataset, batch_size, shuffle)
 
-
+@task(
+    name="Get Model",
+    cache_key_fn=task_input_hash if USE_CACHE else None,
+    cache_expiration=timedelta(days=1) if USE_CACHE else None,
+    log_prints=LOG_PRINTS
+)
 def get_model(model_type, layer_specs, device="cuda", method="xavier"):
     """
     Builds and initializes a model given a high-level config.
@@ -120,6 +153,10 @@ def get_model(model_type, layer_specs, device="cuda", method="xavier"):
     model.apply(partial(init_weights, method=method))
     return model
 
+@task(
+    name="Evaluate Model",
+    log_prints=LOG_PRINTS
+)
 def get_eval(model, loader, device=None, return_metrics=False, amp=True, crit_mode='loss'):
     """
     Evaluates a PyTorch model on a given dataset loader.

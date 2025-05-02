@@ -1,0 +1,13 @@
+version: 2.0
+name: training-flow
+description: Flow for training and evaluating a CNN model using PyTorch
+entrypoint: main.py:training_flow
+work_pool:
+  name: local-default
+  work_queue_name: default
+  job_variables: {}
+tags:
+  - pytorch
+  - training
+  - cnn
+schedule: null
